@@ -8,14 +8,6 @@ WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=23ff0ac2-4fa7-44
 # 监控的交易员列表
 TRADERS = [
     {
-        "name": "低调潜水",
-        "uniqueCode": "AFE05086676C8FC3"
-    },
-    {
-        "name": "～小财神～",
-        "uniqueCode": "1EA7ED83214F8F22"
-    },
-    {
         "name": "十年一梦A",
         "uniqueCode": "FA5E8E09479C7C88"
     },
