@@ -11,6 +11,22 @@ TRADERS = [
         "name": "十年一梦A",
         "uniqueCode": "FA5E8E09479C7C88"
     },
+    {
+        "name": "成都开心哥",
+        "uniqueCode": "8C7DC3E73FECAEE3"
+    },
+    {
+        "name": "FFFD",
+        "uniqueCode": "2F0C19E248311976"
+    },
+    {
+        "name": "小夕&夏天",
+        "uniqueCode": "845654750896108623"
+    },
+    {
+        "name": "币圈大鲨鱼Lin",
+        "uniqueCode": "8FB6049D049B4FE2"
+    },
 ]
 # ==================================================
 
