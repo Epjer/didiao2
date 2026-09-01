@@ -116,4 +116,4 @@ while True:
         except Exception as e:
             print(f"[{name}] 出错：", e)
 
-    time.sleep(10)
+    time.sleep(5)
