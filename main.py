@@ -13,16 +13,29 @@ TRADERS = [
 ]
 # ==================================================
 
-# 请求间隔（秒），防止触发限速
-REQUEST_GAP = 0.45
-# 每轮结束后的休眠（秒），最终有效周期大约 6.5\~8.5 秒
-LOOP_SLEEP = 4
+# ========== 自适应参数（不用手动改） ==========
+num_traders = len(TRADERS)
+
+if num_traders <= 3:
+    REQUEST_GAP = 0.25
+    LOOP_SLEEP = 2
+elif num_traders <= 5:
+    REQUEST_GAP = 0.32
+    LOOP_SLEEP = 3
+else:
+    REQUEST_GAP = 0.42
+    LOOP_SLEEP = 4
+
+ASSET_CACHE_SECONDS = 300
+# ==============================================
 
 session = requests.Session()
 session.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; OKX-Monitor/1.1)",
+    "User-Agent": "Mozilla/5.0 (compatible; OKX-Monitor/1.5)",
     "Accept": "application/json"
 })
+
+asset_cache = {}
 
 def send_wechat(title, content):
     data = {
@@ -40,28 +53,75 @@ def send_wechat(title, content):
     except Exception as e:
         print("推送失败：", e)
 
-def format_position(p):
-    side = "多" if p.get("posSide") == "long" else "空"
-    inst = p.get("instId", "")
-    lever = p.get("lever", "")
-    open_px = p.get("openAvgPx", "")
-    size = p.get("subPos", "")
-    upl = p.get("upl", "")
-
-    # 把毫秒时间戳转成可读时间
-    open_time_str = ""
+def get_open_time_str(p):
     if p.get("openTime"):
         try:
             ts = int(p["openTime"]) / 1000
-            open_time_str = datetime.fromtimestamp(ts).strftime("%m-%d %H:%M:%S")
+            return datetime.fromtimestamp(ts).strftime("%m-%d %H:%M:%S")
         except:
-            open_time_str = str(p.get("openTime"))
+            return str(p.get("openTime"))
+    return "未知"
 
-    return (f"{inst} {side} {lever}x | 开仓价 {open_px} | 数量 {size} | 浮盈 {upl}\n"
-            f"接口开仓时间：{open_time_str}")
+def get_trader_invest_amt(code):
+    now = time.time()
+    cache = asset_cache.get(code)
+    if cache and (now - cache["update_time"] < ASSET_CACHE_SECONDS):
+        return cache["investAmt"]
+
+    url = f"https://www.okx.com/api/v5/copytrading/public-stats?uniqueCode={code}&lastDays=1"
+    data = safe_get(url, retry=1)
+
+    invest_amt = 0.0
+    if data and data.get("code") == "0" and data.get("data"):
+        try:
+            invest_amt = float(data["data"][0].get("investAmt", 0))
+        except:
+            invest_amt = 0.0
+
+    asset_cache[code] = {"investAmt": invest_amt, "update_time": now}
+    return invest_amt
+
+def format_position(p, invest_amt=None):
+    pos_side = p.get("posSide", "")
+    if pos_side == "long":
+        side = "多"
+    elif pos_side == "short":
+        side = "空"
+    else:
+        side = f"净持仓({pos_side})" if pos_side else "未知方向"
+
+    inst = p.get("instId") or "未知币种"
+    lever = p.get("lever") or "?"
+    open_px = p.get("openAvgPx") or "未知"
+    size = p.get("subPos") or "未知"
+    upl = p.get("upl") or "0"
+    margin = p.get("margin") or "0"
+    sub_pos_id = p.get("subPosId") or ""
+
+    open_time_str = get_open_time_str(p)
+
+    content = (
+        f"{inst} {side} {lever}x\n"
+        f"开仓价：{open_px} | 数量：{size}\n"
+        f"保证金：{margin} | 浮盈：{upl}\n"
+        f"接口开仓时间：{open_time_str}"
+    )
+
+    if sub_pos_id:
+        content += f"\n仓位ID：{sub_pos_id[-8:]}"
+
+    if invest_amt and invest_amt > 0:
+        try:
+            ratio = float(margin) / invest_amt * 100
+            content += f"\n**占总资产：{ratio:.2f}%**"
+        except:
+            content += "\n占总资产：计算失败"
+    else:
+        content += "\n占总资产：未知"
+
+    return content
 
 def safe_get(url, retry=1):
-    """带简单重试的请求"""
     for attempt in range(retry + 1):
         try:
             resp = session.get(url, timeout=12)
@@ -84,10 +144,14 @@ def safe_get(url, retry=1):
 last_pos_ids = {t["uniqueCode"]: set() for t in TRADERS}
 first_run = {t["uniqueCode"]: True for t in TRADERS}
 
-print("多交易员监控已启动（稳健版 + openTime）...")
+print("=" * 50)
+print("多交易员监控已启动（自适应版本）")
+print(f"当前监控数量：{num_traders} 人")
+print(f"请求间隔：{REQUEST_GAP}s | 循环休眠：{LOOP_SLEEP}s")
+print("=" * 50)
 for t in TRADERS:
     print(f"  - {t['name']} ({t['uniqueCode']})")
-print(f"请求间隔: {REQUEST_GAP}s | 循环休眠: {LOOP_SLEEP}s\n")
+print()
 
 while True:
     start_time = time.time()
@@ -104,45 +168,39 @@ while True:
             continue
 
         positions = data.get("data", [])
-        current_ids = {p["subPosId"] for p in positions}
+        current_ids = {p["subPosId"] for p in positions if p.get("subPosId")}
+
+        invest_amt = get_trader_invest_amt(code)
 
         now = datetime.now().strftime("%H:%M:%S")
-        print(f"[{now}] {name} 当前持仓：{len(positions)}")
+        print(f"[{now}] {name} 当前持仓：{len(positions)} | 总资产：{invest_amt:.2f}")
 
         if not first_run[code]:
             new_ids = current_ids - last_pos_ids[code]
             closed_ids = last_pos_ids[code] - current_ids
 
-            # 新开仓
             if new_ids:
                 for p in positions:
-                    if p["subPosId"] in new_ids:
+                    if p.get("subPosId") in new_ids:
                         title = f"【{name}】新开仓"
-                        content = format_position(p)
+                        content = format_position(p, invest_amt=invest_amt)
                         send_wechat(title, content)
                         print(f"  → {name} 新开仓：{content}")
 
-            # 平仓
             if closed_ids:
                 hist_data = safe_get(history_url, retry=1)
                 if hist_data and hist_data.get("code") == "0":
                     hist = hist_data.get("data", [])
                     for h in hist:
                         if h.get("subPosId") in closed_ids:
-                            side = "多" if h.get("posSide") == "long" else "空"
-                            open_time_str = ""
-                            if h.get("openTime"):
-                                try:
-                                    ts = int(h["openTime"]) / 1000
-                                    open_time_str = datetime.fromtimestamp(ts).strftime("%m-%d %H:%M:%S")
-                                except:
-                                    open_time_str = str(h.get("openTime"))
+                            side = "多" if h.get("posSide") == "long" else "空" if h.get("posSide") == "short" else h.get("posSide", "未知")
+                            open_time_str = get_open_time_str(h)
 
                             title = f"【{name}】已平仓"
                             content = (
-                                f"{h.get('instId')} {side} {h.get('lever')}x\n"
-                                f"开仓价：{h.get('openAvgPx')}\n"
-                                f"平仓价：{h.get('closeAvgPx')}\n"
+                                f"{h.get('instId') or '未知币种'} {side} {h.get('lever') or '?'}x\n"
+                                f"开仓价：{h.get('openAvgPx') or '未知'}\n"
+                                f"平仓价：{h.get('closeAvgPx') or '未知'}\n"
                                 f"盈亏：{h.get('pnl')} ({h.get('pnlRatio')})\n"
                                 f"接口开仓时间：{open_time_str}"
                             )
@@ -151,10 +209,9 @@ while True:
                 else:
                     print(f"[{name}] 查询历史失败")
 
-        last_pos_ids[code] = current_ids
+last_pos_ids[code] = current_ids
         first_run[code] = False
 
-        # 关键请求间隔，防止触发限速
         time.sleep(REQUEST_GAP)
 
     elapsed = time.time() - start_time
