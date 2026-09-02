@@ -13,7 +13,7 @@ TRADERS = [
 ]
 # ==================================================
 
-# ========== 自适应参数（不用手动改） ==========
+# ========== 自适应参数 ==========
 num_traders = len(TRADERS)
 
 if num_traders <= 3:
@@ -27,7 +27,7 @@ else:
     LOOP_SLEEP = 4
 
 ASSET_CACHE_SECONDS = 300
-# ==============================================
+# ==============================
 
 session = requests.Session()
 session.headers.update({
@@ -209,7 +209,7 @@ while True:
                 else:
                     print(f"[{name}] 查询历史失败")
 
-last_pos_ids[code] = current_ids
+        last_pos_ids[code] = current_ids
         first_run[code] = False
 
         time.sleep(REQUEST_GAP)
