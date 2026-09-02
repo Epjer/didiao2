@@ -16,10 +16,6 @@ TRADERS = [
         "uniqueCode": "8C7DC3E73FECAEE3"
     },
     {
-        "name": "FFFD",
-        "uniqueCode": "2F0C19E248311976"
-    },
-    {
         "name": "小夕&夏天",
         "uniqueCode": "845654750896108623"
     },
