@@ -6,7 +6,6 @@ from datetime import datetime
 WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=23ff0ac2-4fa7-44ed-a609-936f2efc1718"
 
 TRADERS = [
-    {"name": "十年一梦A", "uniqueCode": "FA5E8E09479C7C88"},
     {"name": "成都开心哥", "uniqueCode": "8C7DC3E73FECAEE3"},
     {"name": "小夕&夏天", "uniqueCode": "845654750896108623"},
     {"name": "币圈大鲨鱼Lin", "uniqueCode": "8FB6049D049B4FE2"},
